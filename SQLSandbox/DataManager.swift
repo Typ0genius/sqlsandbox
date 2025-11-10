@@ -7,6 +7,7 @@
 
 import Dependencies
 import Foundation
+import GRDB
 import IssueReporting
 import SQLiteData
 import TabularData
@@ -19,8 +20,15 @@ struct DataManager {
         var importedCount = 0
         
         try await database.write { db in
-            for rowIndex in 0 ..< dataFrame.rows.count {
-                
+            // Prepare statement once and reuse it for all rows
+            let insertSQL = """
+            INSERT INTO "sampleTables" ("date", "event", "pageType", "sourceType", "engagementType", "device", "platformVersion", "territory", "count", "uniqueCount")
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """
+            let stmt = try db.makeStatement(sql: insertSQL)
+            
+            let rowCount = dataFrame.rows.count
+            for rowIndex in 0 ..< rowCount {
                 guard
                     let date = dataFrame["date", Date.self][rowIndex],
                     let event = dataFrame["event", String.self][rowIndex],
@@ -37,22 +45,21 @@ struct DataManager {
                     continue
                 }
                 
-                try SampleTable.insert {
-                    SampleTable.Draft(
-                        date: date,
-                        event: event,
-                        pageType: pageType,
-                        sourceType: sourceType,
-                        engagementType: engagementType,
-                        device: device,
-                        platformVersion: platformVersion,
-                        territory: territory,
-                        count: count,
-                        uniqueCount: uniqueCount
-                    )
-                }
-                .execute(db)
-                
+                // Use setUncheckedArguments for better performance
+                let args: [any DatabaseValueConvertible] = [
+                    date,
+                    event,
+                    pageType,
+                    sourceType,
+                    engagementType,
+                    device,
+                    platformVersion,
+                    territory,
+                    count,
+                    uniqueCount
+                ]
+                stmt.setUncheckedArguments(StatementArguments(args))
+                try stmt.execute()
                 importedCount += 1
             }
         }
