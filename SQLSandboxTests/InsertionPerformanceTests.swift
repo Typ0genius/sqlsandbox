@@ -6,7 +6,7 @@ import SQLiteData
 @testable import SQLSandbox
 
 struct InsertionPerformanceTests {
-    @Test(arguments: [100_000])
+    @Test(arguments: [1_000_000])
     func discoveryEngagementInsertPerformance(insertCount: Int) async throws {
         let envCount = ProcessInfo.processInfo.environment["INSERT_COUNT"].flatMap(Int.init(_:))
         let insertCount = envCount ?? insertCount
@@ -17,15 +17,6 @@ struct InsertionPerformanceTests {
         } operation: {
             @Dependency(\.defaultDatabase) var database
             let dataManager = DataManager()
-            
-            // Create test app
-            let appID = UUID()
-            try await database.write { db in
-                try DBApp.insert {
-                    DBApp.Draft(id: appID, title: "PERF.TEST.APP")
-                }
-                .execute(db)
-            }
             
             let startDate = Date().addingTimeInterval(-Double(insertCount))
             var dates: [Date] = []
@@ -48,7 +39,7 @@ struct InsertionPerformanceTests {
             df.append(column: Column(name: "uniqueCount", contents: (0..<insertCount).map { _ in Int.random(in: 1...3) }))
             
             let start = CFAbsoluteTimeGetCurrent()
-            let importedCount = try await dataManager.importDataFrame(df, appID: appID)
+            let importedCount = try await dataManager.importDataFrame(df)
             
             let duration = CFAbsoluteTimeGetCurrent() - start
             let rps = Int(Double(insertCount) / max(duration, 0.0001))
@@ -57,7 +48,6 @@ struct InsertionPerformanceTests {
             // Verify data was inserted
             let actualCount = try await database.read { db in
                 try SampleTable
-                    .where { $0.AppID.eq(appID) }
                     .select { $0.id.count() }
                     .fetchOne(db) ?? 0
             }
@@ -68,7 +58,6 @@ struct InsertionPerformanceTests {
             // Additional verification - check some sample data
             let sampleData = try await database.read { db in
                 try SampleTable
-                    .where { $0.AppID.eq(appID) }
                     .limit(5)
                     .fetchAll(db)
             }

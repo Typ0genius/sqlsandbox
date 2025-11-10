@@ -13,17 +13,11 @@ import SQLiteData
 import SwiftUI
 import Synchronization
 
-@Table
-struct DBApp: Hashable, Identifiable {
-    let id: UUID
-    var title = ""
-}
 
 @Table
 struct SampleTable: Hashable, Identifiable {
-    let id: UUID
+    let id: Int
     var date: Date
-    var AppID: DBApp.ID
     var event: String
     var pageType: String
     var sourceType: String
@@ -57,24 +51,12 @@ func appDatabase() throws -> any DatabaseWriter {
         migrator.eraseDatabaseOnSchemaChange = true
     #endif
     migrator.registerMigration("Create initial tables") { db in
-        // Create DBApp table
-        try #sql(
-            """
-            CREATE TABLE "dbApps" (
-              "id" TEXT PRIMARY KEY NOT NULL ON CONFLICT REPLACE DEFAULT (uuid()),
-              "title" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT ''
-            ) STRICT
-            """
-        )
-        .execute(db)
-
         // Create SampleTable
         try #sql(
             """
             CREATE TABLE "sampleTables" (
-              "id" TEXT PRIMARY KEY NOT NULL ON CONFLICT REPLACE DEFAULT (uuid()),
+              "id" INTEGER PRIMARY KEY NOT NULL,
               "date" TEXT NOT NULL,
-              "AppID" TEXT NOT NULL REFERENCES "dbApps"("id") ON DELETE CASCADE,
               "event" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
               "pageType" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
               "sourceType" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
@@ -92,19 +74,7 @@ func appDatabase() throws -> any DatabaseWriter {
 
     try migrator.migrate(database)
 
-    try database.write { db in
-        // Ensure there's always at least one DBApp (similar to RemindersList logic)
-        try DBApp.createTemporaryTrigger(
-            after: .delete { _ in
-                DBApp.insert {
-                    DBApp.Draft(title: "Default App")
-                }
-            } when: { _ in
-                !DBApp.exists()
-            }
-        )
-        .execute(db)
-    }
+ 
 
     return database
 }

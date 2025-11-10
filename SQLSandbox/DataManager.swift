@@ -5,60 +5,21 @@
 //  Created by Typ0genius on 25/9/25.
 //
 
-import Foundation
-import TabularData
 import Dependencies
-import SQLiteData
+import Foundation
 import IssueReporting
+import SQLiteData
+import TabularData
 
 struct DataManager {
     @Dependency(\.defaultDatabase) private var database
     
     @discardableResult
-    func importDataFrame(_ dataFrame: DataFrame, appID: UUID? = nil) async throws -> Int {
+    func importDataFrame(_ dataFrame: DataFrame) async throws -> Int {
         var importedCount = 0
         
         try await database.write { db in
-            var appTitleToIDMap: [String: UUID] = [:]
-            
-            if let specificAppID = appID {
-                appTitleToIDMap["*"] = specificAppID
-            } else {
-                let appTitles = Set(dataFrame["appTitle", String.self].compactMap { $0 })
-
-                for appTitle in appTitles {
-                    let existingApp = try DBApp
-                        .where { $0.title.eq(appTitle) }
-                        .fetchOne(db)
-                    
-                    if let existingApp = existingApp {
-                        appTitleToIDMap[appTitle] = existingApp.id
-                    } else {
-                        let newAppID = UUID()
-                        try DBApp.insert {
-                            DBApp.Draft(id: newAppID, title: appTitle)
-                        }
-                        .execute(db)
-                        appTitleToIDMap[appTitle] = newAppID
-                    }
-                }
-            }
-            
-            for rowIndex in 0..<dataFrame.rows.count {
-                let finalAppID: UUID
-                
-                if let specificAppID = appID {
-                    finalAppID = specificAppID
-                } else {
-                    guard
-                        let appTitle = dataFrame["appTitle", String.self][rowIndex],
-                        let mappedAppID = appTitleToIDMap[appTitle]
-                    else {
-                        reportIssue("Could not find app ID for row \(rowIndex)")
-                        continue
-                    }
-                    finalAppID = mappedAppID
-                }
+            for rowIndex in 0 ..< dataFrame.rows.count {
                 
                 guard
                     let date = dataFrame["date", Date.self][rowIndex],
@@ -78,9 +39,7 @@ struct DataManager {
                 
                 try SampleTable.insert {
                     SampleTable.Draft(
-                        id: UUID(),
                         date: date,
-                        AppID: finalAppID,
                         event: event,
                         pageType: pageType,
                         sourceType: sourceType,
