@@ -7,18 +7,16 @@
 
 import SwiftUI
 import SQLiteData
+import Dependencies
 
 @main
 struct SQLSandboxApp: App {
     init() {
         prepareDependencies {
-          let db = try! DatabaseQueue(
-            // Create/migrate a database
-            // connection
-          )
-          $0.defaultDatabase = db
+            $0.defaultDatabase = try! appDatabase()
+            $0.context = .live
         }
-      }
+    }
     
     var body: some Scene {
         WindowGroup {

@@ -15,8 +15,32 @@ import TabularData
 struct DataManager {
     @Dependency(\.defaultDatabase) private var database
     
+    static func generateTestDataFrame(count: Int = 1_000_000) -> DataFrame {
+        let startDate = Date().addingTimeInterval(-Double(count))
+        var dates: [Date] = []
+        dates.reserveCapacity(count)
+        for i in 0..<count {
+            dates.append(Calendar.current.date(byAdding: .second, value: i, to: startDate)!)
+        }
+        
+        var df = DataFrame()
+        df.append(column: Column(name: "appTitle", contents: Array(repeating: "PERF.TEST.APP", count: count)))
+        df.append(column: Column(name: "date", contents: dates))
+        df.append(column: Column(name: "event", contents: Array(repeating: "Impression", count: count)))
+        df.append(column: Column(name: "pageType", contents: Array(repeating: "Product Page", count: count)))
+        df.append(column: Column(name: "sourceType", contents: Array(repeating: "Browse", count: count)))
+        df.append(column: Column(name: "engagementType", contents: Array(repeating: "Tap", count: count)))
+        df.append(column: Column(name: "device", contents: Array(repeating: "iPhone", count: count)))
+        df.append(column: Column(name: "platformVersion", contents: Array(repeating: "iOS 18", count: count)))
+        df.append(column: Column(name: "territory", contents: Array(repeating: "US", count: count)))
+        df.append(column: Column(name: "count", contents: (0..<count).map { _ in Int.random(in: 1...3) }))
+        df.append(column: Column(name: "uniqueCount", contents: (0..<count).map { _ in Int.random(in: 1...3) }))
+        return df
+    }
+    
     @discardableResult
     func importDataFrame(_ dataFrame: DataFrame) async throws -> Int {
+        let df = dataFrame // Local copy to avoid capture issues
         var importedCount = 0
         
         try await database.write { db in
@@ -27,19 +51,19 @@ struct DataManager {
             """
             let stmt = try db.makeStatement(sql: insertSQL)
             
-            let rowCount = dataFrame.rows.count
+            let rowCount = df.rows.count
             for rowIndex in 0 ..< rowCount {
                 guard
-                    let date = dataFrame["date", Date.self][rowIndex],
-                    let event = dataFrame["event", String.self][rowIndex],
-                    let pageType = dataFrame["pageType", String.self][rowIndex],
-                    let sourceType = dataFrame["sourceType", String.self][rowIndex],
-                    let engagementType = dataFrame["engagementType", String.self][rowIndex],
-                    let device = dataFrame["device", String.self][rowIndex],
-                    let platformVersion = dataFrame["platformVersion", String.self][rowIndex],
-                    let territory = dataFrame["territory", String.self][rowIndex],
-                    let count = dataFrame["count", Int.self][rowIndex],
-                    let uniqueCount = dataFrame["uniqueCount", Int.self][rowIndex]
+                    let date = df["date", Date.self][rowIndex],
+                    let event = df["event", String.self][rowIndex],
+                    let pageType = df["pageType", String.self][rowIndex],
+                    let sourceType = df["sourceType", String.self][rowIndex],
+                    let engagementType = df["engagementType", String.self][rowIndex],
+                    let device = df["device", String.self][rowIndex],
+                    let platformVersion = df["platformVersion", String.self][rowIndex],
+                    let territory = df["territory", String.self][rowIndex],
+                    let count = df["count", Int.self][rowIndex],
+                    let uniqueCount = df["uniqueCount", Int.self][rowIndex]
                 else {
                     reportIssue("Invalid data at row \(rowIndex)")
                     continue
