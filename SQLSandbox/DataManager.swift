@@ -54,47 +54,42 @@ struct DataManager {
         let counts = df["count", Int.self]
         let uniqueCounts = df["uniqueCount", Int.self]
         
+        let rowCount = df.rows.count
+       
         try await database.write { db in
-            let insertSQL = """
-            INSERT INTO "sampleTables" ("date", "event", "pageType", "sourceType", "engagementType", "device", "platformVersion", "territory", "count", "uniqueCount")
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """
-            let stmt = try db.makeStatement(sql: insertSQL)
-            
-            let rowCount = df.rows.count
-            for rowIndex in 0..<rowCount {
-                guard
-                    let date = dates[rowIndex],
-                    let event = events[rowIndex],
-                    let pageType = pageTypes[rowIndex],
-                    let sourceType = sourceTypes[rowIndex],
-                    let engagementType = engagementTypes[rowIndex],
-                    let device = devices[rowIndex],
-                    let platformVersion = platformVersions[rowIndex],
-                    let territory = territories[rowIndex],
-                    let count = counts[rowIndex],
-                    let uniqueCount = uniqueCounts[rowIndex]
-                else {
-                    reportIssue("Invalid data at row \(rowIndex)")
-                    continue
+            var insertedRows = 0
+            try SampleTable
+                .insert {
+                    for rowIndex in 0..<rowCount {
+                        if
+                            let date = dates[rowIndex],
+                            let event = events[rowIndex],
+                            let pageType = pageTypes[rowIndex],
+                            let sourceType = sourceTypes[rowIndex],
+                            let engagementType = engagementTypes[rowIndex],
+                            let device = devices[rowIndex],
+                            let platformVersion = platformVersions[rowIndex],
+                            let territory = territories[rowIndex],
+                            let count = counts[rowIndex],
+                            let uniqueCount = uniqueCounts[rowIndex]
+                        {
+                            SampleTable.Draft(
+                                date: date,
+                                event: event,
+                                pageType: pageType,
+                                sourceType: sourceType,
+                                engagementType: engagementType,
+                                device: device,
+                                platformVersion: platformVersion,
+                                territory: territory,
+                                count: count,
+                                uniqueCount: uniqueCount
+                            )
+                        }
+                    }
                 }
-                
-                let args: [any DatabaseValueConvertible] = [
-                    date,
-                    event,
-                    pageType,
-                    sourceType,
-                    engagementType,
-                    device,
-                    platformVersion,
-                    territory,
-                    count,
-                    uniqueCount
-                ]
-                stmt.setUncheckedArguments(StatementArguments(args))
-                try stmt.execute()
-                importedCount += 1
-            }
+                .execute(db)
+            importedCount = insertedRows
         }
         
         return importedCount
