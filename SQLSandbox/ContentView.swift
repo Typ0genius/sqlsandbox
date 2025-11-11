@@ -5,9 +5,9 @@
 //  Created by Typ0genius on 25/9/25.
 //
 
-import SwiftUI
 import Dependencies
 import SQLiteData
+import SwiftUI
 import TabularData
 
 struct ContentView: View {
@@ -41,6 +41,21 @@ struct ContentView: View {
             .buttonStyle(.borderedProminent)
             .disabled(isImporting)
             
+            Button(action: {
+                Task {
+                    await performOldImport()
+                }
+            }) {
+                if isImporting {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Text("Run Old Performance Test")
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(isImporting)
+            
             if !resultMessage.isEmpty {
                 Text(resultMessage)
                     .font(.system(.body, design: .monospaced))
@@ -50,6 +65,45 @@ struct ContentView: View {
             }
         }
         .padding()
+    }
+    
+    private func performOldImport() async {
+        isImporting = true
+        resultMessage = "Importing..."
+        
+        do {
+            let dataManager = DataManager()
+            
+            // Print database location
+            let dbPath = database.path
+            print("📁 Database location: \(dbPath)")
+            
+            // Generate test data
+            let df = DataManager.generateTestDataFrame(count: insertCount)
+            
+            let start = CFAbsoluteTimeGetCurrent()
+            let importedCount = try await dataManager.oldImportDataFrame(df)
+            
+            let duration = CFAbsoluteTimeGetCurrent() - start
+            let rps = Int(Double(insertCount) / max(duration, 0.0001))
+            let message = "[Perf] Imported: \(importedCount) rows in \(String(format: "%.2f", duration))s (\(rps) rows/s)"
+            print(message)
+            
+            // Verify data was inserted
+            let actualCount = try await database.read { db in
+                try SampleTable
+                    .select { $0.id.count() }
+                    .fetchOne(db) ?? 0
+            }
+            
+            resultMessage = message + "\nTotal rows in DB: \(actualCount)\nDB: \(dbPath)"
+            
+        } catch {
+            resultMessage = "Error: \(error.localizedDescription)"
+            print("Import error: \(error)")
+        }
+        
+        isImporting = false
     }
     
     private func performImport() async {
