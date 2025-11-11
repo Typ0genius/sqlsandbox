@@ -13,7 +13,6 @@ import SQLiteData
 import SwiftUI
 import Synchronization
 
-
 @Table
 struct SampleTable: Hashable, Identifiable {
     let id: Int
@@ -35,9 +34,7 @@ func appDatabase() throws -> any DatabaseWriter {
     @Dependency(\.context) var context
     var configuration = Configuration()
     configuration.foreignKeysEnabled = true
-    configuration.prepareDatabase { db in
-//    try db.attachMetadatabase()
-        db.add(function: $handleReminderStatusUpdate)
+    configuration.prepareDatabase { _ in
     }
     let database = try SQLiteData.defaultDatabase(configuration: configuration)
     logger.debug(
@@ -74,29 +71,5 @@ func appDatabase() throws -> any DatabaseWriter {
 
     try migrator.migrate(database)
 
- 
-
     return database
-}
-
-// Update the handleReminderStatusUpdate function for the new schema
-let sampleTableMutex = Mutex<Task<Void, any Error>?>(nil)
-@DatabaseFunction
-func handleReminderStatusUpdate() {
-    sampleTableMutex.withLock {
-        $0?.cancel()
-        $0 = Task {
-            @Dependency(\.defaultDatabase) var database
-            @Dependency(\.continuousClock) var clock
-            try await clock.sleep(for: .seconds(5))
-            try await database.write { db in
-                // Example: Clean up old sample data or perform maintenance
-                // You can customize this based on your needs
-                try SampleTable
-                    .where { $0.count.eq(0) }
-                    .delete()
-                    .execute(db)
-            }
-        }
-    }
 }
