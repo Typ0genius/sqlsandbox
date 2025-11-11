@@ -6,10 +6,10 @@ import SQLiteData
 @testable import SQLSandbox
 
 struct InsertionPerformanceTests {
-    @Test
-    func discoveryEngagementInsertPerformance() async throws {
-        let insertCount = 1_000_000
-        
+    @Test(arguments: [1_000_000])
+    func discoveryEngagementInsertPerformance(insertCount: Int) async throws {
+        let envCount = ProcessInfo.processInfo.environment["INSERT_COUNT"].flatMap(Int.init(_:))
+        let insertCount = envCount ?? insertCount
         
         try await withDependencies {
             $0.defaultDatabase = try appDatabase()

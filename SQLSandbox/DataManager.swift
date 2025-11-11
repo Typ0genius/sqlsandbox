@@ -40,11 +40,21 @@ struct DataManager {
     
     @discardableResult
     func importDataFrame(_ dataFrame: DataFrame) async throws -> Int {
-        let df = dataFrame // Local copy to avoid capture issues
+        let df = dataFrame
         var importedCount = 0
         
+        let dates = df["date", Date.self]
+        let events = df["event", String.self]
+        let pageTypes = df["pageType", String.self]
+        let sourceTypes = df["sourceType", String.self]
+        let engagementTypes = df["engagementType", String.self]
+        let devices = df["device", String.self]
+        let platformVersions = df["platformVersion", String.self]
+        let territories = df["territory", String.self]
+        let counts = df["count", Int.self]
+        let uniqueCounts = df["uniqueCount", Int.self]
+        
         try await database.write { db in
-            // Prepare statement once and reuse it for all rows
             let insertSQL = """
             INSERT INTO "sampleTables" ("date", "event", "pageType", "sourceType", "engagementType", "device", "platformVersion", "territory", "count", "uniqueCount")
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -52,24 +62,23 @@ struct DataManager {
             let stmt = try db.makeStatement(sql: insertSQL)
             
             let rowCount = df.rows.count
-            for rowIndex in 0 ..< rowCount {
+            for rowIndex in 0..<rowCount {
                 guard
-                    let date = df["date", Date.self][rowIndex],
-                    let event = df["event", String.self][rowIndex],
-                    let pageType = df["pageType", String.self][rowIndex],
-                    let sourceType = df["sourceType", String.self][rowIndex],
-                    let engagementType = df["engagementType", String.self][rowIndex],
-                    let device = df["device", String.self][rowIndex],
-                    let platformVersion = df["platformVersion", String.self][rowIndex],
-                    let territory = df["territory", String.self][rowIndex],
-                    let count = df["count", Int.self][rowIndex],
-                    let uniqueCount = df["uniqueCount", Int.self][rowIndex]
+                    let date = dates[rowIndex],
+                    let event = events[rowIndex],
+                    let pageType = pageTypes[rowIndex],
+                    let sourceType = sourceTypes[rowIndex],
+                    let engagementType = engagementTypes[rowIndex],
+                    let device = devices[rowIndex],
+                    let platformVersion = platformVersions[rowIndex],
+                    let territory = territories[rowIndex],
+                    let count = counts[rowIndex],
+                    let uniqueCount = uniqueCounts[rowIndex]
                 else {
                     reportIssue("Invalid data at row \(rowIndex)")
                     continue
                 }
                 
-                // Use setUncheckedArguments for better performance
                 let args: [any DatabaseValueConvertible] = [
                     date,
                     event,
