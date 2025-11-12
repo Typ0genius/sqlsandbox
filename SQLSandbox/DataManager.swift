@@ -54,13 +54,22 @@ struct DataManager {
         let counts = df["count", Int.self]
         let uniqueCounts = df["uniqueCount", Int.self]
 
+        // ✅ PRAGMAs must run OUTSIDE the write transaction
+        try await database.writeWithoutTransaction { db in
+            try db.execute(sql: "PRAGMA journal_mode = WAL;")
+            try db.execute(sql: "PRAGMA synchronous = NORMAL;")
+            try db.execute(sql: "PRAGMA temp_store = MEMORY;")
+            try db.execute(sql: "PRAGMA cache_size = -20000;")
+        }
+
         try await database.write { db in
-            let insertSQL = """
-            INSERT INTO "sampleTables" ("date", "event", "pageType", "sourceType", "engagementType", "device", "platformVersion", "territory", "count", "uniqueCount")
+            let sql = """
+            INSERT INTO "sampleTables"
+            ("date", "event", "pageType", "sourceType", "engagementType", "device", "platformVersion", "territory", "count", "uniqueCount")
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
-            let stmt = try db.makeStatement(sql: insertSQL)
 
+            let stmt = try db.makeStatement(sql: sql)
             let rowCount = df.rows.count
 
             for rowIndex in 0..<rowCount {
@@ -80,7 +89,7 @@ struct DataManager {
                     continue
                 }
 
-                let args: [any DatabaseValueConvertible] = [
+                try stmt.execute(arguments: [
                     date,
                     event,
                     pageType,
@@ -91,10 +100,9 @@ struct DataManager {
                     territory,
                     count,
                     uniqueCount
-                ]
-                stmt.setUncheckedArguments(StatementArguments(args))
-                try stmt.execute()
-                importedCount += 1
+                ])
+
+                importedCount &+= 1
             }
         }
 
