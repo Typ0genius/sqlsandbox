@@ -102,7 +102,6 @@ struct DataManager {
                     uniqueCount
                 ])
 
-                importedCount &+= 1
             }
         }
 
