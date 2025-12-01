@@ -18,11 +18,17 @@ struct ContentView: View {
     
     private let insertCount = 1_000_000
     
+    @FetchOne(SampleTable.count())
+    var samplesCount
+    
     var body: some View {
         VStack(spacing: 20) {
             Text("SQL Sandbox Performance Test")
                 .font(.title)
-            
+            if let samplesCount {
+                Text("Sample Count in DB: \(samplesCount.formatted())")
+            }
+                
             Text("Insert Count: \(insertCount.formatted())")
                 .font(.headline)
             
