@@ -15,6 +15,7 @@ struct ContentView: View {
     
     @State private var isImporting = false
     @State private var resultMessage = ""
+    @State private var isObserving = true
     
     private let insertCount = 1_000_000
     
@@ -28,6 +29,9 @@ struct ContentView: View {
             if let samplesCount {
                 Text("Sample Count in DB: \(samplesCount.formatted())")
             }
+            
+            Toggle("Observe sample count", isOn: $isObserving)
+                .toggleStyle(.switch)
                 
             Text("Insert Count: \(insertCount.formatted())")
                 .font(.headline)
@@ -71,6 +75,10 @@ struct ContentView: View {
             }
         }
         .padding()
+        .task(id: isObserving) {
+            guard isObserving else { return }
+            try? await $samplesCount.load(SampleTable.count()).task
+        }
     }
     
     private func performOldImport() async {
