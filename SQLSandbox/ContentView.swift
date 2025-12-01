@@ -35,7 +35,7 @@ struct ContentView: View {
                     ProgressView()
                         .controlSize(.small)
                 } else {
-                    Text("Run Performance Test")
+                    Text("Run Batches Performance Test")
                 }
             }
             .buttonStyle(.borderedProminent)
@@ -50,7 +50,7 @@ struct ContentView: View {
                     ProgressView()
                         .controlSize(.small)
                 } else {
-                    Text("Run Old Performance Test")
+                    Text("Run Each Line Performance Test")
                 }
             }
             .buttonStyle(.borderedProminent)
