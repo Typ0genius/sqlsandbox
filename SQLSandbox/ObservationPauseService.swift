@@ -1,6 +1,20 @@
 import Dependencies
 import Foundation
 
+actor ObservationPauseBroadcaster {
+    private var continuation: AsyncStream<Bool>.Continuation?
+    
+    func stream() -> AsyncStream<Bool> {
+        AsyncStream { continuation in
+            self.continuation = continuation
+        }
+    }
+    
+    func send(_ isPaused: Bool) {
+        continuation?.yield(isPaused)
+    }
+}
+
 struct ObservationPauseService: Sendable {
     var pause: @Sendable () async -> Void
     var resume: @Sendable () async -> Void
@@ -21,18 +35,16 @@ struct ObservationPauseService: Sendable {
 }
 
 extension ObservationPauseService {
-    static let live = Self(
-        pause: {
-            await MainActor.run {
-                NotificationCenter.default.post(name: .observationsPaused, object: nil)
+    static func live(broadcaster: ObservationPauseBroadcaster) -> Self {
+        Self(
+            pause: {
+                await broadcaster.send(true)
+            },
+            resume: {
+                await broadcaster.send(false)
             }
-        },
-        resume: {
-            await MainActor.run {
-                NotificationCenter.default.post(name: .observationsResumed, object: nil)
-            }
-        }
-    )
+        )
+    }
     
     static let noop = Self(
         pause: {},
@@ -41,19 +53,31 @@ extension ObservationPauseService {
 }
 
 extension DependencyValues {
+    var observationPauseBroadcaster: ObservationPauseBroadcaster {
+        get { self[ObservationPauseBroadcasterKey.self] }
+        set { self[ObservationPauseBroadcasterKey.self] = newValue }
+    }
+    
     var observationPauseService: ObservationPauseService {
         get { self[ObservationPauseServiceKey.self] }
         set { self[ObservationPauseServiceKey.self] = newValue }
     }
     
-    private enum ObservationPauseServiceKey: DependencyKey {
-        static let liveValue = ObservationPauseService.live
-        static let testValue = ObservationPauseService.noop
-        static let previewValue = ObservationPauseService.noop
+    private enum ObservationPauseBroadcasterKey: DependencyKey {
+        static let liveValue = ObservationPauseBroadcaster()
+        static let testValue = ObservationPauseBroadcaster()
+        static let previewValue = ObservationPauseBroadcaster()
     }
-}
-
-extension Notification.Name {
-    static let observationsPaused = Notification.Name("ObservationPauseService.observationsPaused")
-    static let observationsResumed = Notification.Name("ObservationPauseService.observationsResumed")
+    
+    private enum ObservationPauseServiceKey: DependencyKey {
+        static var liveValue: ObservationPauseService {
+            ObservationPauseService.live(broadcaster: ObservationPauseBroadcasterKey.liveValue)
+        }
+        static var testValue: ObservationPauseService {
+            ObservationPauseService.live(broadcaster: ObservationPauseBroadcasterKey.testValue)
+        }
+        static var previewValue: ObservationPauseService {
+            ObservationPauseService.live(broadcaster: ObservationPauseBroadcasterKey.previewValue)
+        }
+    }
 }

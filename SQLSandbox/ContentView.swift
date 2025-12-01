@@ -12,12 +12,13 @@ import TabularData
 
 struct ContentView: View {
     @Dependency(\.defaultDatabase) private var database
+    @Dependency(\.observationPauseBroadcaster) private var pauseBroadcaster
     
     @State private var isImporting = false
     @State private var resultMessage = ""
     @State private var isObserving = true
     @State private var isExternallyPaused = false
-    @State private var observationTask: Task<Void, Never>?
+    @State private var observationTask: Task<Void, any Error>?
     
     private let insertCount = 1_000_000
     
@@ -77,6 +78,15 @@ struct ContentView: View {
             }
         }
         .padding()
+        .task {
+            for await isPaused in await pauseBroadcaster.stream() {
+                isExternallyPaused = isPaused
+                if isPaused {
+                    observationTask?.cancel()
+                    observationTask = nil
+                }
+            }
+        }
         .task(id: isObserving && !isExternallyPaused) {
             guard isObserving && !isExternallyPaused else {
                 observationTask?.cancel()
@@ -86,21 +96,13 @@ struct ContentView: View {
             do {
                 let fetch = try await $samplesCount.load(SampleTable.count())
                 observationTask = Task {
-                    try? await fetch.task
+                    try await fetch.task
                 }
             } catch {
                 // In a demo app we just log the error and stop observing.
                 print("Observation error: \(error)")
                 observationTask = nil
             }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .observationsPaused)) { _ in
-            isExternallyPaused = true
-            observationTask?.cancel()
-            observationTask = nil
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .observationsResumed)) { _ in
-            isExternallyPaused = false
         }
     }
     
