@@ -14,6 +14,7 @@ import TabularData
 
 struct DataManager {
     @Dependency(\.defaultDatabase) private var database
+    @Dependency(\.observationPauseService) private var observationPauseService
 
     static func generateTestDataFrame(count: Int = 1_000_000) -> DataFrame {
         let startDate = Date().addingTimeInterval(-Double(count))
@@ -40,137 +41,141 @@ struct DataManager {
 
     @discardableResult
     func oldImportDataFrame(_ dataFrame: DataFrame) async throws -> Int {
-        let df = dataFrame
-        var importedCount = 0
+        try await observationPauseService.withPausedObservations {
+            let df = dataFrame
+            var importedCount = 0
 
-        let dates = df["date", Date.self]
-        let events = df["event", String.self]
-        let pageTypes = df["pageType", String.self]
-        let sourceTypes = df["sourceType", String.self]
-        let engagementTypes = df["engagementType", String.self]
-        let devices = df["device", String.self]
-        let platformVersions = df["platformVersion", String.self]
-        let territories = df["territory", String.self]
-        let counts = df["count", Int.self]
-        let uniqueCounts = df["uniqueCount", Int.self]
+            let dates = df["date", Date.self]
+            let events = df["event", String.self]
+            let pageTypes = df["pageType", String.self]
+            let sourceTypes = df["sourceType", String.self]
+            let engagementTypes = df["engagementType", String.self]
+            let devices = df["device", String.self]
+            let platformVersions = df["platformVersion", String.self]
+            let territories = df["territory", String.self]
+            let counts = df["count", Int.self]
+            let uniqueCounts = df["uniqueCount", Int.self]
 
-        // ✅ PRAGMAs must run OUTSIDE the write transaction
-        try await database.writeWithoutTransaction { db in
-            try db.execute(sql: "PRAGMA journal_mode = WAL;")
-            try db.execute(sql: "PRAGMA synchronous = NORMAL;")
-            try db.execute(sql: "PRAGMA temp_store = MEMORY;")
-            try db.execute(sql: "PRAGMA cache_size = -20000;")
-        }
-
-        try await database.write { db in
-            let sql = """
-            INSERT INTO "sampleTables"
-            ("date", "event", "pageType", "sourceType", "engagementType", "device", "platformVersion", "territory", "count", "uniqueCount")
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """
-
-            let stmt = try db.makeStatement(sql: sql)
-            let rowCount = df.rows.count
-
-            for rowIndex in 0..<rowCount {
-                guard
-                    let date = dates[rowIndex],
-                    let event = events[rowIndex],
-                    let pageType = pageTypes[rowIndex],
-                    let sourceType = sourceTypes[rowIndex],
-                    let engagementType = engagementTypes[rowIndex],
-                    let device = devices[rowIndex],
-                    let platformVersion = platformVersions[rowIndex],
-                    let territory = territories[rowIndex],
-                    let count = counts[rowIndex],
-                    let uniqueCount = uniqueCounts[rowIndex]
-                else {
-                    reportIssue("Invalid data at row \(rowIndex)")
-                    continue
-                }
-
-                try stmt.execute(arguments: [
-                    date,
-                    event,
-                    pageType,
-                    sourceType,
-                    engagementType,
-                    device,
-                    platformVersion,
-                    territory,
-                    count,
-                    uniqueCount
-                ])
-
+            // ✅ PRAGMAs must run OUTSIDE the write transaction
+            try await database.writeWithoutTransaction { db in
+                try db.execute(sql: "PRAGMA journal_mode = WAL;")
+                try db.execute(sql: "PRAGMA synchronous = NORMAL;")
+                try db.execute(sql: "PRAGMA temp_store = MEMORY;")
+                try db.execute(sql: "PRAGMA cache_size = -20000;")
             }
-        }
 
-        return importedCount
+            try await database.write { db in
+                let sql = """
+                INSERT INTO "sampleTables"
+                ("date", "event", "pageType", "sourceType", "engagementType", "device", "platformVersion", "territory", "count", "uniqueCount")
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """
+
+                let stmt = try db.makeStatement(sql: sql)
+                let rowCount = df.rows.count
+
+                for rowIndex in 0..<rowCount {
+                    guard
+                        let date = dates[rowIndex],
+                        let event = events[rowIndex],
+                        let pageType = pageTypes[rowIndex],
+                        let sourceType = sourceTypes[rowIndex],
+                        let engagementType = engagementTypes[rowIndex],
+                        let device = devices[rowIndex],
+                        let platformVersion = platformVersions[rowIndex],
+                        let territory = territories[rowIndex],
+                        let count = counts[rowIndex],
+                        let uniqueCount = uniqueCounts[rowIndex]
+                    else {
+                        reportIssue("Invalid data at row \(rowIndex)")
+                        continue
+                    }
+
+                    try stmt.execute(arguments: [
+                        date,
+                        event,
+                        pageType,
+                        sourceType,
+                        engagementType,
+                        device,
+                        platformVersion,
+                        territory,
+                        count,
+                        uniqueCount
+                    ])
+
+                }
+            }
+
+            return importedCount
+        }
     }
 
     @discardableResult
     func importDataFrame(_ dataFrame: DataFrame) async throws -> Int {
-        let df = dataFrame
-        var importedCount = 0
+        try await observationPauseService.withPausedObservations {
+            let df = dataFrame
+            var importedCount = 0
 
-        let dates = df["date", Date.self]
-        let events = df["event", String.self]
-        let pageTypes = df["pageType", String.self]
-        let sourceTypes = df["sourceType", String.self]
-        let engagementTypes = df["engagementType", String.self]
-        let devices = df["device", String.self]
-        let platformVersions = df["platformVersion", String.self]
-        let territories = df["territory", String.self]
-        let counts = df["count", Int.self]
-        let uniqueCounts = df["uniqueCount", Int.self]
+            let dates = df["date", Date.self]
+            let events = df["event", String.self]
+            let pageTypes = df["pageType", String.self]
+            let sourceTypes = df["sourceType", String.self]
+            let engagementTypes = df["engagementType", String.self]
+            let devices = df["device", String.self]
+            let platformVersions = df["platformVersion", String.self]
+            let territories = df["territory", String.self]
+            let counts = df["count", Int.self]
+            let uniqueCounts = df["uniqueCount", Int.self]
 
-        let rowCount = df.rows.count
-        let chunkSize = 10_000
+            let rowCount = df.rows.count
+            let chunkSize = 10_000
 
-        try await database.write { db in
-            var start = 0
+            try await database.write { db in
+                var start = 0
 
-            while start < rowCount {
-                let end = min(start + chunkSize, rowCount)
+                while start < rowCount {
+                    let end = min(start + chunkSize, rowCount)
 
-                try SampleTable
-                    .insert {
-                        for rowIndex in start..<end {
-                            if
-                                let date = dates[rowIndex],
-                                let event = events[rowIndex],
-                                let pageType = pageTypes[rowIndex],
-                                let sourceType = sourceTypes[rowIndex],
-                                let engagementType = engagementTypes[rowIndex],
-                                let device = devices[rowIndex],
-                                let platformVersion = platformVersions[rowIndex],
-                                let territory = territories[rowIndex],
-                                let count = counts[rowIndex],
-                                let uniqueCount = uniqueCounts[rowIndex]
-                            {
-                                SampleTable.Draft(
-                                    date: date,
-                                    event: event,
-                                    pageType: pageType,
-                                    sourceType: sourceType,
-                                    engagementType: engagementType,
-                                    device: device,
-                                    platformVersion: platformVersion,
-                                    territory: territory,
-                                    count: count,
-                                    uniqueCount: uniqueCount
-                                )
+                    try SampleTable
+                        .insert {
+                            for rowIndex in start..<end {
+                                if
+                                    let date = dates[rowIndex],
+                                    let event = events[rowIndex],
+                                    let pageType = pageTypes[rowIndex],
+                                    let sourceType = sourceTypes[rowIndex],
+                                    let engagementType = engagementTypes[rowIndex],
+                                    let device = devices[rowIndex],
+                                    let platformVersion = platformVersions[rowIndex],
+                                    let territory = territories[rowIndex],
+                                    let count = counts[rowIndex],
+                                    let uniqueCount = uniqueCounts[rowIndex]
+                                {
+                                    SampleTable.Draft(
+                                        date: date,
+                                        event: event,
+                                        pageType: pageType,
+                                        sourceType: sourceType,
+                                        engagementType: engagementType,
+                                        device: device,
+                                        platformVersion: platformVersion,
+                                        territory: territory,
+                                        count: count,
+                                        uniqueCount: uniqueCount
+                                    )
+                                }
                             }
                         }
-                    }
-                    .execute(db)
+                        .execute(db)
 
-                start = end
+                    start = end
+                }
             }
+
+            importedCount = rowCount
+
+            return importedCount
         }
-
-        importedCount = rowCount
-
-        return importedCount
     }
 }

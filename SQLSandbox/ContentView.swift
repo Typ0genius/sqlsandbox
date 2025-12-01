@@ -16,6 +16,8 @@ struct ContentView: View {
     @State private var isImporting = false
     @State private var resultMessage = ""
     @State private var isObserving = true
+    @State private var isExternallyPaused = false
+    @State private var observationTask: Task<Void, Never>?
     
     private let insertCount = 1_000_000
     
@@ -75,9 +77,30 @@ struct ContentView: View {
             }
         }
         .padding()
-        .task(id: isObserving) {
-            guard isObserving else { return }
-            try? await $samplesCount.load(SampleTable.count()).task
+        .task(id: isObserving && !isExternallyPaused) {
+            guard isObserving && !isExternallyPaused else {
+                observationTask?.cancel()
+                observationTask = nil
+                return
+            }
+            do {
+                let fetch = try await $samplesCount.load(SampleTable.count())
+                observationTask = Task {
+                    try? await fetch.task
+                }
+            } catch {
+                // In a demo app we just log the error and stop observing.
+                print("Observation error: \(error)")
+                observationTask = nil
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .observationsPaused)) { _ in
+            isExternallyPaused = true
+            observationTask?.cancel()
+            observationTask = nil
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .observationsResumed)) { _ in
+            isExternallyPaused = false
         }
     }
     
