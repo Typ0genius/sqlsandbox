@@ -22,11 +22,11 @@ struct InsertionPerformanceTests {
             let df = DataManager.generateTestDataFrame(count: insertCount)
             
             let start = CFAbsoluteTimeGetCurrent()
-            let importedCount = try await dataManager.oldImportDataFrame(df)
+            try await dataManager.oldImportDataFrame(df)
             
             let duration = CFAbsoluteTimeGetCurrent() - start
             let rps = Int(Double(insertCount) / max(duration, 0.0001))
-            print("[Perf] Imported: \(importedCount) rows in \(String(format: "%.2f", duration))s (\(rps) rows/s)")
+            print("[Perf] Imported: \(insertCount) rows in \(String(format: "%.2f", duration))s (\(rps) rows/s)")
             
             let actualCount = try await database.read { db in
                 try SampleTable
@@ -35,7 +35,6 @@ struct InsertionPerformanceTests {
             }
             
             #expect(actualCount == insertCount)
-            #expect(importedCount == insertCount)
         }
     }
     
@@ -55,11 +54,11 @@ struct InsertionPerformanceTests {
             let df = DataManager.generateTestDataFrame(count: insertCount)
             
             let start = CFAbsoluteTimeGetCurrent()
-            let importedCount = try await dataManager.importDataFrame(df)
+            try await dataManager.importDataFrame(df)
             
             let duration = CFAbsoluteTimeGetCurrent() - start
             let rps = Int(Double(insertCount) / max(duration, 0.0001))
-            print("[Perf] Imported: \(importedCount) rows in \(String(format: "%.2f", duration))s (\(rps) rows/s)")
+            print("[Perf] Imported: \(insertCount) rows in \(String(format: "%.2f", duration))s (\(rps) rows/s)")
             
             let actualCount = try await database.read { db in
                 try SampleTable
@@ -68,7 +67,6 @@ struct InsertionPerformanceTests {
             }
             
             #expect(actualCount == insertCount)
-            #expect(importedCount == insertCount)
         }
     }
 }

@@ -16,6 +16,8 @@ struct ContentView: View {
     @State private var isImporting = false
     @State private var resultMessage = ""
     @State private var isObserving = true
+    @State private var samplesCountTask: Task<Void, Never>?
+    @State private var showChilds = false
     
     private let insertCount = 1_000_000
     
@@ -29,6 +31,8 @@ struct ContentView: View {
             if let samplesCount {
                 Text("Sample Count in DB: \(samplesCount.formatted())")
             }
+            Toggle("Show childs", isOn: $showChilds)
+                .toggleStyle(.switch)
             
             Toggle("Observe sample count", isOn: $isObserving)
                 .toggleStyle(.switch)
@@ -73,11 +77,30 @@ struct ContentView: View {
                     .background(Color.secondary.opacity(0.1))
                     .cornerRadius(8)
             }
+
+            if showChilds {
+                HStack(spacing: 12) {
+                    ChildCountView(title: "Child A", isObserving: isObserving)
+                    ChildCountView(title: "Child B", isObserving: isObserving)
+                    ChildCountView(title: "Child C", isObserving: isObserving)
+                }
+            }
         }
         .padding()
-        .task(id: isObserving) {
-            guard isObserving else { return }
-            try? await $samplesCount.load(SampleTable.count()).task
+        .onAppear {
+            startObservingSamplesIfNeeded()
+        }
+        .onChange(of: isObserving) { observing in
+            print("Parent onChange isObserving -> \(observing)")
+            if observing {
+                startObservingSamplesIfNeeded()
+            } else {
+                stopObservingSamples()
+            }
+        }
+        .onChange(of: samplesCount) { newValue in
+            let valueDescription = newValue.map { "\($0)" } ?? "nil"
+            print("Parent samplesCount changed -> \(valueDescription)")
         }
     }
     
@@ -96,11 +119,11 @@ struct ContentView: View {
             let df = DataManager.generateTestDataFrame(count: insertCount)
             
             let start = CFAbsoluteTimeGetCurrent()
-            let importedCount = try await dataManager.oldImportDataFrame(df)
+            try await dataManager.oldImportDataFrame(df)
             
             let duration = CFAbsoluteTimeGetCurrent() - start
             let rps = Int(Double(insertCount) / max(duration, 0.0001))
-            let message = "[Perf] Imported: \(importedCount) rows in \(String(format: "%.2f", duration))s (\(rps) rows/s)"
+            let message = "[Perf] Imported: \(insertCount) rows in \(String(format: "%.2f", duration))s (\(rps) rows/s)"
             print(message)
             
             // Verify data was inserted
@@ -135,11 +158,11 @@ struct ContentView: View {
             let df = DataManager.generateTestDataFrame(count: insertCount)
             
             let start = CFAbsoluteTimeGetCurrent()
-            let importedCount = try await dataManager.importDataFrame(df)
+            try await dataManager.importDataFrame(df)
             
             let duration = CFAbsoluteTimeGetCurrent() - start
             let rps = Int(Double(insertCount) / max(duration, 0.0001))
-            let message = "[Perf] Imported: \(importedCount) rows in \(String(format: "%.2f", duration))s (\(rps) rows/s)"
+            let message = "[Perf] Imported: \(insertCount) rows in \(String(format: "%.2f", duration))s (\(rps) rows/s)"
             print(message)
             
             // Verify data was inserted
@@ -157,6 +180,93 @@ struct ContentView: View {
         }
         
         isImporting = false
+    }
+
+    private func startObservingSamplesIfNeeded() {
+        guard samplesCountTask == nil, isObserving else {
+            print("Parent observe skipped (task exists? \(samplesCountTask != nil), isObserving: \(isObserving))")
+            return
+        }
+        print("Parent observe start (isObserving: \(isObserving))")
+        samplesCountTask = Task {
+            print("Parent fetch start")
+            defer { print("Parent fetch finished") }
+            try? await $samplesCount.load(SampleTable.count()).task
+        }
+    }
+
+    private func stopObservingSamples() {
+        print("Parent observe stop (existing task: \(samplesCountTask != nil))")
+        if let samplesCountTask {
+            samplesCountTask.cancel()
+            print("Parent task cancelled")
+        }
+        samplesCountTask = nil
+    }
+}
+
+private struct ChildCountView: View {
+    let title: String
+    let isObserving: Bool
+    @State private var observationTask: Task<Void, Never>?
+
+    @FetchOne(SampleTable.count())
+    var childSamplesCount
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Text(title)
+                .font(.headline)
+
+            if let childSamplesCount {
+                Text("Samples: \(childSamplesCount.formatted())")
+                    .font(.subheadline)
+            } else {
+                Text("Samples: —")
+                    .font(.subheadline)
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity)
+        .background(Color.secondary.opacity(0.1))
+        .cornerRadius(8)
+        .onAppear {
+            startObserving()
+        }
+        .onChange(of: isObserving) { observing in
+            print("\(title) onChange isObserving -> \(observing)")
+            if observing {
+                startObserving()
+            } else {
+                stopObserving()
+            }
+        }
+        .onChange(of: childSamplesCount) { newValue in
+            let valueDescription = newValue.map { "\($0)" } ?? "nil"
+            print("\(title) samplesCount changed -> \(valueDescription)")
+        }
+    }
+
+    private func startObserving() {
+        guard observationTask == nil, isObserving else {
+            print("\(title) observe skipped (task exists? \(observationTask != nil), isObserving: \(isObserving))")
+            return
+        }
+        print("\(title) observe start (isObserving: \(isObserving))")
+        observationTask = Task {
+            print("\(title) fetch start")
+            defer { print("\(title) fetch finished") }
+            try? await $childSamplesCount.load(SampleTable.count()).task
+        }
+    }
+
+    private func stopObserving() {
+        print("\(title) observe stop (existing task: \(observationTask != nil))")
+        if let observationTask {
+            observationTask.cancel()
+            print("\(title) task cancelled")
+        }
+        observationTask = nil
     }
 }
 

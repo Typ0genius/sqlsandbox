@@ -38,10 +38,8 @@ struct DataManager {
         return df
     }
 
-    @discardableResult
-    func oldImportDataFrame(_ dataFrame: DataFrame) async throws -> Int {
+    func oldImportDataFrame(_ dataFrame: DataFrame) async throws {
         let df = dataFrame
-        var importedCount = 0
 
         let dates = df["date", Date.self]
         let events = df["event", String.self]
@@ -105,13 +103,10 @@ struct DataManager {
             }
         }
 
-        return importedCount
     }
 
-    @discardableResult
-    func importDataFrame(_ dataFrame: DataFrame) async throws -> Int {
+    func importDataFrame(_ dataFrame: DataFrame) async throws {
         let df = dataFrame
-        var importedCount = 0
 
         let dates = df["date", Date.self]
         let events = df["event", String.self]
@@ -169,8 +164,5 @@ struct DataManager {
             }
         }
 
-        importedCount = rowCount
-
-        return importedCount
     }
 }
