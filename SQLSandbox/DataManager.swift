@@ -65,8 +65,8 @@ struct DataManager {
         try await database.write { db in
             let sql = """
             INSERT INTO "sampleTables"
-            ("date", "event", "pageType", "sourceType", "engagementType", "device", "platformVersion", "territory", "count", "uniqueCount")
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ("id", "date", "event", "pageType", "sourceType", "engagementType", "device", "platformVersion", "territory", "count", "uniqueCount")
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
 
             let stmt = try db.makeStatement(sql: sql)
@@ -89,7 +89,9 @@ struct DataManager {
                     continue
                 }
 
+                // Pre-generate UUID in Swift to avoid SQLite callback overhead
                 try stmt.execute(arguments: [
+                    generateUUIDv7(),
                     date,
                     event,
                     pageType,
@@ -148,7 +150,9 @@ struct DataManager {
                                 let count = counts[rowIndex],
                                 let uniqueCount = uniqueCounts[rowIndex]
                             {
+                                // Pre-generate UUID in Swift to avoid SQLite callback overhead
                                 SampleTable.Draft(
+                                    id: generateUUIDv7(),
                                     date: date,
                                     event: event,
                                     pageType: pageType,
