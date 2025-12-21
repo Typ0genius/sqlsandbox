@@ -16,20 +16,20 @@ struct ContentView: View {
     @State private var isImporting = false
     @State private var resultMessage = ""
     @State private var isObserving = true
-    @State private var samplesCountTask: Task<Void, Never>?
     @State private var showChilds = false
+    @State private var displayedCount: Int?
     
     private let insertCount = 1_000_000
     
-    @FetchOne(SampleTable.count())
-    var samplesCount
+    // OHNE Query = keine automatische Observation
+    @FetchOne var samplesCount: Int?
     
     var body: some View {
         VStack(spacing: 20) {
             Text("SQL Sandbox Performance Test")
                 .font(.title)
-            if let samplesCount {
-                Text("Sample Count in DB: \(samplesCount.formatted())")
+            if let displayedCount {
+                Text("Sample Count in DB: \(displayedCount.formatted())")
             }
             Toggle("Show childs", isOn: $showChilds)
                 .toggleStyle(.switch)
@@ -87,20 +87,21 @@ struct ContentView: View {
             }
         }
         .padding()
-        .onAppear {
-            startObservingSamplesIfNeeded()
-        }
-        .onChange(of: isObserving) { observing in
-            print("Parent onChange isObserving -> \(observing)")
-            if observing {
-                startObservingSamplesIfNeeded()
-            } else {
-                stopObservingSamples()
+        .task(id: isObserving) {
+            guard isObserving else {
+                print("Parent observation skipped (isObserving: false)")
+                return
             }
+            print("Parent observation start")
+            try? await $samplesCount.load(SampleTable.count()).task
+            print("Parent observation finished")
         }
         .onChange(of: samplesCount) { newValue in
             let valueDescription = newValue.map { "\($0)" } ?? "nil"
             print("Parent samplesCount changed -> \(valueDescription)")
+            if let newValue {
+                displayedCount = newValue
+            }
         }
     }
     
@@ -182,44 +183,25 @@ struct ContentView: View {
         isImporting = false
     }
 
-    private func startObservingSamplesIfNeeded() {
-        guard samplesCountTask == nil, isObserving else {
-            print("Parent observe skipped (task exists? \(samplesCountTask != nil), isObserving: \(isObserving))")
-            return
-        }
-        print("Parent observe start (isObserving: \(isObserving))")
-        samplesCountTask = Task {
-            print("Parent fetch start")
-            defer { print("Parent fetch finished") }
-            try? await $samplesCount.load(SampleTable.count()).task
-        }
-    }
-
-    private func stopObservingSamples() {
-        print("Parent observe stop (existing task: \(samplesCountTask != nil))")
-        if let samplesCountTask {
-            samplesCountTask.cancel()
-            print("Parent task cancelled")
-        }
-        samplesCountTask = nil
-    }
 }
 
 private struct ChildCountView: View {
     let title: String
     let isObserving: Bool
-    @State private var observationTask: Task<Void, Never>?
 
-    @FetchOne(SampleTable.count())
-    var childSamplesCount
+    // OHNE Query = keine automatische Observation
+    @FetchOne var samplesCount: Int?
+    
+    // Persistenter Cache für den Wert
+    @State private var displayedCount: Int?
 
     var body: some View {
         VStack(spacing: 8) {
             Text(title)
                 .font(.headline)
 
-            if let childSamplesCount {
-                Text("Samples: \(childSamplesCount.formatted())")
+            if let displayedCount {
+                Text("Samples: \(displayedCount.formatted())")
                     .font(.subheadline)
             } else {
                 Text("Samples: —")
@@ -230,43 +212,24 @@ private struct ChildCountView: View {
         .frame(maxWidth: .infinity)
         .background(Color.secondary.opacity(0.1))
         .cornerRadius(8)
-        .onAppear {
-            startObserving()
-        }
-        .onChange(of: isObserving) { observing in
-            print("\(title) onChange isObserving -> \(observing)")
-            if observing {
-                startObserving()
-            } else {
-                stopObserving()
+        .id(title)
+        .task(id: isObserving) {
+            guard isObserving else {
+                print("\(title) observation skipped (isObserving: false)")
+                return
             }
+            print("\(title) observation start")
+            try? await $samplesCount.load(SampleTable.count()).task
+            print("\(title) observation finished")
         }
-        .onChange(of: childSamplesCount) { newValue in
+        .onChange(of: samplesCount) { newValue in
             let valueDescription = newValue.map { "\($0)" } ?? "nil"
             print("\(title) samplesCount changed -> \(valueDescription)")
+            // Update displayedCount only with real values
+            if let newValue {
+                displayedCount = newValue
+            }
         }
-    }
-
-    private func startObserving() {
-        guard observationTask == nil, isObserving else {
-            print("\(title) observe skipped (task exists? \(observationTask != nil), isObserving: \(isObserving))")
-            return
-        }
-        print("\(title) observe start (isObserving: \(isObserving))")
-        observationTask = Task {
-            print("\(title) fetch start")
-            defer { print("\(title) fetch finished") }
-            try? await $childSamplesCount.load(SampleTable.count()).task
-        }
-    }
-
-    private func stopObserving() {
-        print("\(title) observe stop (existing task: \(observationTask != nil))")
-        if let observationTask {
-            observationTask.cancel()
-            print("\(title) task cancelled")
-        }
-        observationTask = nil
     }
 }
 
