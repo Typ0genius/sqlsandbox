@@ -52,7 +52,6 @@ struct DataManager {
         let counts = df["count", Int.self]
         let uniqueCounts = df["uniqueCount", Int.self]
 
-        // ✅ PRAGMAs must run OUTSIDE the write transaction
         try await database.writeWithoutTransaction { db in
             try db.execute(sql: "PRAGMA journal_mode = WAL;")
             try db.execute(sql: "PRAGMA synchronous = NORMAL;")
@@ -99,10 +98,8 @@ struct DataManager {
                     count,
                     uniqueCount
                 ])
-
             }
         }
-
     }
 
     func importDataFrame(_ dataFrame: DataFrame) async throws {
@@ -163,6 +160,5 @@ struct DataManager {
                 start = end
             }
         }
-
     }
 }

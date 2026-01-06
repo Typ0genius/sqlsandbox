@@ -37,12 +37,12 @@ func appDatabase() throws -> any DatabaseWriter {
     configuration.prepareDatabase { _ in
     }
     let database = try SQLiteData.defaultDatabase(configuration: configuration)
-    logger.debug(
-        """
-        App database:
-        open "\(database.path)"
-        """
-    )
+//    logger.debug(
+//        """
+//        App database:
+//        open "\(database.path)"
+//        """
+//    )
     var migrator = DatabaseMigrator()
     #if DEBUG
         migrator.eraseDatabaseOnSchemaChange = true

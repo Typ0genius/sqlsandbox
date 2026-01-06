@@ -6,8 +6,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/sqlite-data/?tab=readme-ov-file#SQLite-knowledge-required",
       "state" : {
-        "branch" : "main",
-        "revision" : "d471d2939c7592fe44107696e43977c7f5975fc0"
+        "revision" : "45a7a199b7547a1c80ae064fb05ff866625585ea",
+        "version" : "1.4.2"
       }
     },
     {

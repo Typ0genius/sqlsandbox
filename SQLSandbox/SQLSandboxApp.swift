@@ -5,9 +5,9 @@
 //  Created by Typ0genius on 25/9/25.
 //
 
-import SwiftUI
-import SQLiteData
 import Dependencies
+import SQLiteData
+import SwiftUI
 
 @main
 struct SQLSandboxApp: App {
@@ -17,7 +17,7 @@ struct SQLSandboxApp: App {
             $0.context = .live
         }
     }
-    
+
     var body: some Scene {
         WindowGroup {
             ContentView()
