@@ -18,7 +18,7 @@ struct ContentView: View {
     @State private var showChilds = false
     
     @FetchOne var samplesCount: Int?
-    @State var countSubscription: FetchSubscription?
+    @State var countTask: Task<Void, Never>?
     
     var body: some View {
         VStack(spacing: 20) {
@@ -55,10 +55,8 @@ struct ContentView: View {
         }
         .padding()
         .task {
-            do {
-                countSubscription = try await $samplesCount.load(SampleTable.count())
-            } catch {
-                print("Failed to load initial samples count: \(error)")
+            countTask = Task {
+                try? await $samplesCount.load(SampleTable.count()).task
             }
         }
     }
@@ -68,8 +66,10 @@ struct ContentView: View {
 
         isImporting = true
         resultMessage = "Importing..."
-        print(countSubscription == nil ? "No count subscription" : "Has count subscription")
-        countSubscription?.cancel()
+        
+        // Task canceln
+        countTask?.cancel()
+        
         do {
             let dataManager = DataManager()
             
@@ -89,7 +89,11 @@ struct ContentView: View {
             }
             
             resultMessage = message + "\nTotal rows in DB: \(actualCount)"
-            countSubscription = try await $samplesCount.load(SampleTable.count())
+            
+            // Subscription neu starten
+            countTask = Task {
+                try? await $samplesCount.load(SampleTable.count()).task
+            }
         } catch {
             resultMessage = "Error: \(error.localizedDescription)"
         }
