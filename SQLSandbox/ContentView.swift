@@ -25,10 +25,17 @@ struct ContentView: View {
             Text("SQL Sandbox Performance Test")
                 .font(.title)
             if let samplesCount {
-                Text("Fetched Count: \(samplesCount.formatted())")
+                Text("Fetched Count (Parent): \(samplesCount.formatted())")
             }
             Toggle("Show childs", isOn: $showChilds)
                 .toggleStyle(.switch)
+            
+            if showChilds {
+                HStack(spacing: 20) {
+                    ChildCountView(shouldPauseFetch: isImporting)
+                    ChildCountView(shouldPauseFetch: isImporting)
+                }
+            }
                 
             Button(action: {
                 Task {
@@ -67,7 +74,7 @@ struct ContentView: View {
         isImporting = true
         resultMessage = "Importing..."
         
-        // Task canceln
+        // Cancel Task
         countTask?.cancel()
         
         do {
@@ -90,7 +97,7 @@ struct ContentView: View {
             
             resultMessage = message + "\nTotal rows in DB: \(actualCount)"
             
-            // Subscription neu starten
+            // Subscribe again
             countTask = Task {
                 try? await $samplesCount.load(SampleTable.count()).task
             }
@@ -99,5 +106,41 @@ struct ContentView: View {
         }
         
         isImporting = false
+    }
+}
+
+struct ChildCountView: View {
+    @FetchOne var samplesCount: Int?
+    @State var countTask: Task<Void, Never>?
+    
+    let shouldPauseFetch: Bool
+    
+    var body: some View {
+        VStack {
+            Text("Child View")
+                .font(.headline)
+            if let samplesCount {
+                Text("Count: \(samplesCount.formatted())")
+                    .font(.caption)
+            } else {
+                Text("Loading...")
+                    .font(.caption)
+            }
+        }
+        .padding()
+        .background(Color.blue.opacity(0.1))
+        .cornerRadius(8)
+        .task(id: shouldPauseFetch) {
+            if shouldPauseFetch {
+                // Pausieren: Task canceln
+                countTask?.cancel()
+                countTask = nil
+            } else {
+                // Starten/Fortsetzen: Neuen Task erstellen
+                countTask = Task {
+                    try? await $samplesCount.load(SampleTable.count()).task
+                }
+            }
+        }
     }
 }
