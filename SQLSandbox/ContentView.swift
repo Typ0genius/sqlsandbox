@@ -66,11 +66,15 @@ struct ContentView: View {
                 try? await $samplesCount.load(SampleTable.count()).task
             }
         }
+        .onChange(of: showChilds) { oldValue, newValue in
+            print("=== TOGGLE: showChilds changed \(oldValue) -> \(newValue) ===")
+        }
     }
     
     private func performOldImport() async {
         let insertCount = 1_000_000
 
+        print("=== IMPORT STARTED ===")
         isImporting = true
         resultMessage = "Importing..."
         
@@ -88,6 +92,8 @@ struct ContentView: View {
             let duration = CFAbsoluteTimeGetCurrent() - start
             let rps = Int(Double(insertCount) / max(duration, 0.0001))
             let message = "[Perf] Imported: \(insertCount) rows in \(String(format: "%.2f", duration))s (\(rps) rows/s)"
+            
+            print("=== IMPORT FINISHED: \(String(format: "%.2f", duration))s (\(rps) rows/s) ===")
             
             let actualCount = try await database.read { db in
                 try SampleTable
@@ -109,16 +115,27 @@ struct ContentView: View {
     }
 }
 
-struct ChildCountView: View {
+// MARK: - Child Model (eigenes Model pro Child)
+@Observable
+class ChildModel {
+    @ObservationIgnored
     @FetchOne var samplesCount: Int?
+    
+    let id = UUID()
+}
+
+struct ChildCountView: View {
+    @State private var model = ChildModel()
     
     let shouldPauseFetch: Bool
     
     var body: some View {
+        let _ = print("CHILD [\(model.id.uuidString.prefix(4))]: body rendered, shouldPauseFetch=\(shouldPauseFetch), samplesCount=\(String(describing: model.samplesCount))")
+        
         VStack {
             Text("Child View")
                 .font(.headline)
-            if let samplesCount {
+            if let samplesCount = model.samplesCount {
                 Text("Count: \(samplesCount.formatted())")
                     .font(.caption)
             } else {
@@ -130,8 +147,19 @@ struct ChildCountView: View {
         .background(Color.blue.opacity(0.1))
         .cornerRadius(8)
         .task(id: shouldPauseFetch) {
-            guard !shouldPauseFetch else { return }
-            try? await $samplesCount.load(SampleTable.count()).task
+            print("CHILD [\(model.id.uuidString.prefix(4))]: .task(id:) called, shouldPauseFetch=\(shouldPauseFetch)")
+            
+            // Wenn pausiert, einfach nichts tun - der alte Task wird durch .task(id:) automatisch gecancelt
+            guard !shouldPauseFetch else {
+                print("CHILD [\(model.id.uuidString.prefix(4))]: PAUSED - doing nothing")
+                return
+            }
+            
+            print("CHILD [\(model.id.uuidString.prefix(4))]: STARTING fetch")
+            print("CHILD [\(model.id.uuidString.prefix(4))]: load() started")
+            // Direkt awaiten ohne Wrapper-Task - so kann .task(id:) es richtig canceln
+            try? await model.$samplesCount.load(SampleTable.count()).task
+            print("CHILD [\(model.id.uuidString.prefix(4))]: load() completed")
         }
     }
 }
