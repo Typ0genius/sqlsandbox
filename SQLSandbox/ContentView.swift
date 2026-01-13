@@ -111,7 +111,6 @@ struct ContentView: View {
 
 struct ChildCountView: View {
     @FetchOne var samplesCount: Int?
-    @State var countTask: Task<Void, Never>?
     
     let shouldPauseFetch: Bool
     
@@ -131,16 +130,8 @@ struct ChildCountView: View {
         .background(Color.blue.opacity(0.1))
         .cornerRadius(8)
         .task(id: shouldPauseFetch) {
-            if shouldPauseFetch {
-                // Pausieren: Task canceln
-                countTask?.cancel()
-                countTask = nil
-            } else {
-                // Starten/Fortsetzen: Neuen Task erstellen
-                countTask = Task {
-                    try? await $samplesCount.load(SampleTable.count()).task
-                }
-            }
+            guard !shouldPauseFetch else { return }
+            try? await $samplesCount.load(SampleTable.count()).task
         }
     }
 }
