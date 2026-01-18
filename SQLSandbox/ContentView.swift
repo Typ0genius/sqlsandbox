@@ -124,6 +124,47 @@ class ChildModel {
     @FetchOne var samplesCount: Int?
     
     let id = UUID()
+    
+    // Die Variable, die du haben möchtest
+    var lastCount: Int?
+    
+    // Private State für die Pause-Logik
+    private var pendingUpdate: Int?
+    private var cancellables = Set<AnyCancellable>()
+    
+    init() {
+        _samplesCount = FetchOne(SampleTable.count())
+//        setupPublisherObserver()
+    }
+    
+    private func setupPublisherObserver() {
+        $samplesCount.publisher
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] newValue in
+                guard let self else { return }
+                print("ChildModel [\(id.uuidString.prefix(4))]: Publisher triggered with \(String(describing: newValue))")
+                // Update wird in handleUpdate verarbeitet
+                self.pendingUpdate = newValue
+            }
+            .store(in: &cancellables)
+    }
+    
+    func setLastCount(_ newValue: Int?) {
+        lastCount = newValue
+        print("ChildModel [\(id.uuidString.prefix(4))]: lastCount updated to \(String(describing: newValue))")
+    }
+    
+    func handleUpdate(isPaused: Bool) {
+        guard let pending = pendingUpdate else { return }
+        
+        if isPaused {
+            print("ChildModel [\(id.uuidString.prefix(4))]: PAUSED - keeping pending update: \(String(describing: pending))")
+        } else {
+            print("ChildModel [\(id.uuidString.prefix(4))]: Applying pending update: \(String(describing: pending))")
+            setLastCount(pending)
+            pendingUpdate = nil
+        }
+    }
 }
 
 struct ChildCountView: View {
@@ -132,44 +173,41 @@ struct ChildCountView: View {
     let shouldPauseFetch: Bool
     
     var body: some View {
-        let _ = print("CHILD [\(model.id.uuidString.prefix(4))]: body rendered, shouldPauseFetch=\(shouldPauseFetch), samplesCount=\(String(describing: model.samplesCount))")
-                
         VStack {
             Text("Child View")
                 .font(.headline)
-            if let samplesCount = model.samplesCount {
-                Text("Count: \(samplesCount.formatted())")
-                    .font(.caption)
-            } else {
-                Text("Loading...")
-                    .font(.caption)
+            
+            if let lastCount = model.lastCount {
+                Text("Last: \(lastCount.formatted())")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
         }
         .padding()
         .background(Color.blue.opacity(0.1))
         .cornerRadius(8)
-        .onReceive(model.$samplesCount.publisher.receive(on: DispatchQueue.main)) { newValue in
-            print("CHILD [\(model.id.uuidString.prefix(4))]: samplesCount changed to \(String(describing: newValue))")
-            // Hier kannst du auf Änderungen reagieren
+        .onChange(of: shouldPauseFetch) { _, newValue in
+            // Bei jeder Änderung prüfen ob pending update angewendet werden soll
+            model.handleUpdate(isPaused: newValue)
+        }
+        .onAppear {
+            // Initial check
+            model.handleUpdate(isPaused: shouldPauseFetch)
         }
         .task(id: shouldPauseFetch) {
             print("CHILD [\(model.id.uuidString.prefix(4))]: .task(id:) called, shouldPauseFetch=\(shouldPauseFetch)")
-            
+                    
             // Wenn pausiert, einfach nichts tun - der alte Task wird durch .task(id:) automatisch gecancelt
             guard !shouldPauseFetch else {
                 print("CHILD [\(model.id.uuidString.prefix(4))]: PAUSED - doing nothing")
                 return
             }
-            
+                    
             print("CHILD [\(model.id.uuidString.prefix(4))]: STARTING fetch")
             print("CHILD [\(model.id.uuidString.prefix(4))]: load() started")
             // Direkt awaiten ohne Wrapper-Task - so kann .task(id:) es richtig canceln
             try? await model.$samplesCount.load(SampleTable.count()).task
             print("CHILD [\(model.id.uuidString.prefix(4))]: load() completed")
         }
-    }
-    
-    func doSomething() {
-        
     }
 }
