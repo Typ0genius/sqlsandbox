@@ -9,6 +9,7 @@ import Dependencies
 import SQLiteData
 import SwiftUI
 import TabularData
+internal import Combine
 
 struct ContentView: View {
     @Dependency(\.defaultDatabase) private var database
@@ -116,6 +117,7 @@ struct ContentView: View {
 }
 
 // MARK: - Child Model (eigenes Model pro Child)
+
 @Observable
 class ChildModel {
     @ObservationIgnored
@@ -131,7 +133,7 @@ struct ChildCountView: View {
     
     var body: some View {
         let _ = print("CHILD [\(model.id.uuidString.prefix(4))]: body rendered, shouldPauseFetch=\(shouldPauseFetch), samplesCount=\(String(describing: model.samplesCount))")
-        
+                
         VStack {
             Text("Child View")
                 .font(.headline)
@@ -146,6 +148,10 @@ struct ChildCountView: View {
         .padding()
         .background(Color.blue.opacity(0.1))
         .cornerRadius(8)
+        .onReceive(model.$samplesCount.publisher.receive(on: DispatchQueue.main)) { newValue in
+            print("CHILD [\(model.id.uuidString.prefix(4))]: samplesCount changed to \(String(describing: newValue))")
+            // Hier kannst du auf Änderungen reagieren
+        }
         .task(id: shouldPauseFetch) {
             print("CHILD [\(model.id.uuidString.prefix(4))]: .task(id:) called, shouldPauseFetch=\(shouldPauseFetch)")
             
@@ -161,5 +167,9 @@ struct ChildCountView: View {
             try? await model.$samplesCount.load(SampleTable.count()).task
             print("CHILD [\(model.id.uuidString.prefix(4))]: load() completed")
         }
+    }
+    
+    func doSomething() {
+        
     }
 }
