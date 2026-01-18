@@ -116,12 +116,60 @@ struct ContentView: View {
 }
 
 // MARK: - Child Model (eigenes Model pro Child)
+
 @Observable
 class ChildModel {
     @ObservationIgnored
     @FetchOne var samplesCount: Int?
     
+    @ObservationIgnored
+    private var fetchTask: Task<Void, Never>?
+    
     let id = UUID()
+    
+    func pauseChanged(newValue: Bool) {
+        if newValue {
+            // Cancel observation
+            print("CHILD [\(id.uuidString.prefix(4))]: Cancelling fetch task")
+            fetchTask?.cancel()
+            fetchTask = nil
+        } else {
+            // Start/continue observation
+            print("CHILD [\(id.uuidString.prefix(4))]: Starting fetch task")
+            startFetching()
+        }
+    }
+    
+    func startFetching() {
+        // Cancel existing task if any
+        fetchTask?.cancel()
+        
+        fetchTask = Task {
+            print("CHILD [\(id.uuidString.prefix(4))]: STARTING fetch")
+            print("CHILD [\(id.uuidString.prefix(4))]: load() started")
+            
+            guard !Task.isCancelled else {
+                print("CHILD [\(id.uuidString.prefix(4))]: Task was cancelled before starting")
+                return
+            }
+            
+            try? await $samplesCount.load(SampleTable.count()).task
+            
+            guard !Task.isCancelled else {
+                print("CHILD [\(id.uuidString.prefix(4))]: Task was cancelled after load")
+                return
+            }
+            
+            print("CHILD [\(id.uuidString.prefix(4))]: load() completed")
+            fetchTask = nil
+        }
+    }
+    
+    func stopFetching() {
+        print("CHILD [\(id.uuidString.prefix(4))]: Stopping fetch task")
+        fetchTask?.cancel()
+        fetchTask = nil
+    }
 }
 
 struct ChildCountView: View {
@@ -130,36 +178,30 @@ struct ChildCountView: View {
     let shouldPauseFetch: Bool
     
     var body: some View {
-        let _ = print("CHILD [\(model.id.uuidString.prefix(4))]: body rendered, shouldPauseFetch=\(shouldPauseFetch), samplesCount=\(String(describing: model.samplesCount))")
-        
         VStack {
             Text("Child View")
                 .font(.headline)
-            if let samplesCount = model.samplesCount {
-                Text("Count: \(samplesCount.formatted())")
-                    .font(.caption)
-            } else {
-                Text("Loading...")
-                    .font(.caption)
-            }
+            Text("Last Count: \(model.samplesCount ?? -1)")
         }
         .padding()
         .background(Color.blue.opacity(0.1))
         .cornerRadius(8)
-        .task(id: shouldPauseFetch) {
-            print("CHILD [\(model.id.uuidString.prefix(4))]: .task(id:) called, shouldPauseFetch=\(shouldPauseFetch)")
-            
-            // Wenn pausiert, einfach nichts tun - der alte Task wird durch .task(id:) automatisch gecancelt
-            guard !shouldPauseFetch else {
-                print("CHILD [\(model.id.uuidString.prefix(4))]: PAUSED - doing nothing")
-                return
+        .onAppear {
+            model.startFetching()
+        }
+        .onDisappear {
+            model.stopFetching()
+        }
+        .onChange(of: shouldPauseFetch) { _, newValue in
+            model.pauseChanged(newValue: newValue)
+        }
+        .onChange(of: model.samplesCount) {
+            if shouldPauseFetch {
+                model.pauseChanged(newValue: true)
             }
-            
-            print("CHILD [\(model.id.uuidString.prefix(4))]: STARTING fetch")
-            print("CHILD [\(model.id.uuidString.prefix(4))]: load() started")
-            // Direkt awaiten ohne Wrapper-Task - so kann .task(id:) es richtig canceln
-            try? await model.$samplesCount.load(SampleTable.count()).task
-            print("CHILD [\(model.id.uuidString.prefix(4))]: load() completed")
+        }
+        .onChange(of: model.samplesCount) {
+            print("DISPLAYED DATA UPDATE TRIGGERED \(model.id) \(model.samplesCount ?? -1)")
         }
     }
 }
