@@ -129,13 +129,9 @@ class ChildModel {
     
     func pauseChanged(newValue: Bool) {
         if newValue {
-            // Cancel observation
-            print("CHILD [\(id.uuidString.prefix(4))]: Cancelling fetch task")
             fetchTask?.cancel()
             fetchTask = nil
         } else {
-            // Start/continue observation
-            print("CHILD [\(id.uuidString.prefix(4))]: Starting fetch task")
             startFetching()
         }
     }
@@ -145,28 +141,21 @@ class ChildModel {
         fetchTask?.cancel()
         
         fetchTask = Task {
-            print("CHILD [\(id.uuidString.prefix(4))]: STARTING fetch")
-            print("CHILD [\(id.uuidString.prefix(4))]: load() started")
-            
             guard !Task.isCancelled else {
-                print("CHILD [\(id.uuidString.prefix(4))]: Task was cancelled before starting")
                 return
             }
             
             try? await $samplesCount.load(SampleTable.count()).task
             
             guard !Task.isCancelled else {
-                print("CHILD [\(id.uuidString.prefix(4))]: Task was cancelled after load")
                 return
             }
             
-            print("CHILD [\(id.uuidString.prefix(4))]: load() completed")
             fetchTask = nil
         }
     }
     
     func stopFetching() {
-        print("CHILD [\(id.uuidString.prefix(4))]: Stopping fetch task")
         fetchTask?.cancel()
         fetchTask = nil
     }
@@ -174,6 +163,7 @@ class ChildModel {
 
 struct ChildCountView: View {
     @State private var model = ChildModel()
+    @State var uselessCount = 0
     
     let shouldPauseFetch: Bool
     
@@ -182,6 +172,9 @@ struct ChildCountView: View {
             Text("Child View")
                 .font(.headline)
             Text("Last Count: \(model.samplesCount ?? -1)")
+            Button("Increase \(uselessCount)") {
+                uselessCount += 1
+            }
         }
         .padding()
         .background(Color.blue.opacity(0.1))
@@ -196,12 +189,11 @@ struct ChildCountView: View {
             model.pauseChanged(newValue: newValue)
         }
         .onChange(of: model.samplesCount) {
+            print("DISPLAYED DATA UPDATE TRIGGERED \(model.id) \(model.samplesCount ?? -1)")
+
             if shouldPauseFetch {
                 model.pauseChanged(newValue: true)
             }
-        }
-        .onChange(of: model.samplesCount) {
-            print("DISPLAYED DATA UPDATE TRIGGERED \(model.id) \(model.samplesCount ?? -1)")
         }
     }
 }
